@@ -198,29 +198,38 @@ const bookAppointment = async (req, res) => {
     const userId = req.user.userId;
     const { docId, slotDate, slotTime } = req.body;
     const docData = await doctorModel.findById(docId).select("-password");
+
     if (!docData.available) {
       return res.json({ success: false, message: "Doctor is not available" });
     }
     let slots_booked = docData.slots_booked || {};
     //checking for slots availability
-    if (slots_booked[slotDate]) {
-      if (slots_booked[slotDate].includes(slotTime)) {
-        return res.json({
-          success: false,
-          message: "Slot not available. Please choose another slot.",
-        });
-      }
-      slots_booked[slotDate].push(slotTime);
-      // else {
-      //   slots_booked[slotDate].push(slotTime);
-      // }
-    } else {
-      // slots_booked[slotDate] = [];
-      // slots_booked[slotDate].push(slotTime);
-      slots_booked[slotDate] = [slotTime];
+    //if (slots_booked[slotDate]) {
+    if (!slots_booked[slotDate]) {
+      slots_booked[slotDate] = []; // create array if empty
     }
+    if (slots_booked[slotDate].includes(slotTime)) {
+      return res.json({
+        success: false,
+        message: "Slot not available. Please choose another slot.",
+      });
+    }
+    // if (!slots_booked[slotDate]) {
+    //   slots_booked[slotDate] = [];
+    // }
+    slots_booked[slotDate].push(slotTime);
+    //slots_booked[slotDate].push(slotTime);
+    // else {
+    //   slots_booked[slotDate].push(slotTime);
+    // }
+    //} else {
+    // slots_booked[slotDate] = [];
+    // slots_booked[slotDate].push(slotTime);
+    //slots_booked[slotDate] = [slotTime];
+    //}
+    await doctorModel.findByIdAndUpdate(docId, { slots_booked });
     const userData = await userModel.findById(userId).select("-password");
-    delete docData.slots_booked;
+    //delete docData.slots_booked;
     const appointmentData = {
       userId,
       docId,
@@ -235,7 +244,7 @@ const bookAppointment = async (req, res) => {
     await newAppointment.save();
 
     //save new slots data in docData
-    await doctorModel.findByIdAndUpdate(docId, { slots_booked });
+    //await doctorModel.findByIdAndUpdate(docId, { slots_booked });
     res.json({ success: true, message: "Appointment booked successfully" });
   } catch (error) {
     console.log(error);
@@ -243,4 +252,53 @@ const bookAppointment = async (req, res) => {
   }
 };
 
-export { registerUser, loginUser, getProfile, updateProfile, bookAppointment };
+//api to get user appointments can be added here
+const listAppointments = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const appointments = await appointmentModel.find({ userId });
+    res.json({ success: true, appointments });
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+//api to cancel appointment can be added here
+const cancelAppointment = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { appointmentId } = req.body;
+    const appointmentData = await appointmentModel.findById(appointmentId);
+    if (appointmentData.userId.toString() !== userId.toString()) {
+      return res.json({ success: false, message: "Unauthorized action" });
+    }
+    await appointmentModel.findByIdAndUpdate(appointmentId, {
+      cancelled: true,
+    });
+
+    const { docId, slotDate, slotTime } = appointmentData;
+    const docData = await doctorModel.findById(docId).select("-password");
+    let slots_booked = docData.slots_booked;
+    slots_booked[slotDate] = slots_booked[slotDate].filter(
+      (e) => e !== slotTime
+    );
+    await doctorModel.findByIdAndUpdate(docId, { slots_booked });
+    return res.json({
+      success: true,
+      message: "Appointment cancelled successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+export {
+  registerUser,
+  loginUser,
+  getProfile,
+  updateProfile,
+  bookAppointment,
+  listAppointments,
+  cancelAppointment,
+};
