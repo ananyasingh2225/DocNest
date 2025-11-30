@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
+import razorpay from "razorpay";
+
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET);
 };
@@ -292,6 +294,65 @@ const cancelAppointment = async (req, res) => {
     res.json({ success: false, message: error.message });
   }
 };
+const razorpayInstance = new razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
+//api to make payment can be added here for razorpay
+const paymentRazorpay = async (req, res) => {
+  try {
+    const { appointmentId } = req.body;
+    // const userId = req.user.userId;
+    const appointmentData = await appointmentModel.findById(appointmentId);
+    if (!appointmentData || appointmentData.cancelled) {
+      return res.json({ success: false, message: "Appointment not found" });
+    }
+    //creating options for razorpay payment
+    const options = {
+      amount: appointmentData.amount * 100, // amount in the smallest currency unit
+      currency: process.env.CURRENCY,
+      receipt: appointmentId,
+    };
+    //creating order
+    const order = await razorpayInstance.orders.create(options);
+    res.json({ success: true, order });
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+//api to verify payment can be added here
+const verifyRazorpay = async (req, res) => {
+  try {
+    console.log("Verify API reached"); // debugging
+    console.log("BODY:", req.body);
+    const { razorpay_payment_id } = req.body;
+    const { razorpay_order_id } = req.body;
+    const { razorpay_signature } = req.body;
+    if (!razorpay_order_id) {
+      return res.json({ success: false, message: "razorpay_order_id missing" });
+    }
+
+    const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
+    //console.log("ORDER:", orderInfo);
+    if (orderInfo.status === "paid") {
+      await appointmentModel.findByIdAndUpdate(orderInfo.receipt, {
+        payment: true,
+      });
+      res.json({ success: true, message: "Payment successful" });
+    } else {
+      res.json({ success: false, message: "Payment not completed" });
+    }
+
+    //const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
+    //console.log(orderInfo);
+    //const { razorpay_order_id } = req.body;
+    //const { razorpay_signature } = req.body;
+  } catch (error) {
+    console.log("VERIFY ERROR:", error);
+    res.json({ success: false, message: error.message });
+  }
+};
 
 export {
   registerUser,
@@ -301,4 +362,6 @@ export {
   bookAppointment,
   listAppointments,
   cancelAppointment,
+  paymentRazorpay,
+  verifyRazorpay,
 };
