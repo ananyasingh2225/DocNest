@@ -3,12 +3,37 @@ import { DoctorContext } from "../../context/DoctorContext";
 import { AppContext } from "../../context/AppContext";
 import { useEffect } from "react";
 import { useState } from "react";
-
+import axios from "axios";
+import { toast } from "react-toastify";
 const DoctorProfile = () => {
-  const { dToken, profileData, setProfileData, getProfileData } =
+  const { dToken, profileData, setProfileData, getProfileData, backendUrl } =
     useContext(DoctorContext);
-  const { currency, backendUrl } = useContext(AppContext);
+  const { currencySymbol: currency } = useContext(AppContext);
   const [isEdit, setIsEdit] = useState(false);
+  const updateProfile = async () => {
+    try {
+      const updateData = {
+        address: profileData.address,
+        fees: profileData.fees,
+        available: profileData.available,
+      };
+      const { data } = await axios.post(
+        backendUrl + "/api/doctor/update-profile",
+        updateData,
+        { headers: { Authorization: `Bearer ${dToken}` } }
+      );
+      if (data.success) {
+        toast.success(data.message);
+        setIsEdit(false);
+        getProfileData();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Something went wrong");
+      console.log(error);
+    }
+  };
   useEffect(() => {
     if (dToken) {
       getProfileData();
@@ -45,29 +70,31 @@ const DoctorProfile = () => {
                 {profileData.about}
               </p>
             </div>
-            <p className="mt-4 text-gray-600">
-              Appointment Fee :{" "}
-              <button
-                onClick={() => setIsEdit(true)}
-                className="font-semibold text-indigo-700"
-              >
-                {currency}
-                {isEdit ? (
+            <div className="mt-4 text-gray-600">
+              Appointment Fee :
+              {isEdit ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-indigo-700">
+                    {currency}
+                  </span>
                   <input
                     type="number"
+                    value={profileData.fees}
                     onChange={(e) =>
                       setProfileData((prev) => ({
                         ...prev,
                         fees: e.target.value,
                       }))
                     }
-                    value={profileData.fees}
                   />
-                ) : (
-                  profileData.fees
-                )}
-              </button>
-            </p>
+                </div>
+              ) : (
+                <span className="font-semibold text-indigo-700">
+                  {currency}
+                  {profileData.fees}
+                </span>
+              )}
+            </div>
             <div className="mt-4">
               <p className="font-semibold text-indigo-700">Address:</p>
               <p className="text-gray-600 mt-1 leading-relaxed">
@@ -121,7 +148,7 @@ const DoctorProfile = () => {
             </div>
             {isEdit ? (
               <button
-                onClick={() => isEdit(false)}
+                onClick={updateProfile}
                 className="mt-6 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 
                        text-white rounded-lg shadow-md transition-all"
               >
@@ -129,7 +156,7 @@ const DoctorProfile = () => {
               </button>
             ) : (
               <button
-                onClick={() => isEdit(true)}
+                onClick={() => setIsEdit(true)}
                 className="mt-6 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 
                        text-white rounded-lg shadow-md transition-all"
               >

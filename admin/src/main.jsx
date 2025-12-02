@@ -12,11 +12,11 @@ import { StrictMode } from "react";
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <AdminContextProvider>
-      <DoctorContextProvider>
-        <AppContextProvider>
+      <AppContextProvider>
+        <DoctorContextProvider>
           <App />
-        </AppContextProvider>
-      </DoctorContextProvider>
+        </DoctorContextProvider>
+      </AppContextProvider>
     </AdminContextProvider>
   </BrowserRouter>
 );
